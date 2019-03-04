@@ -32,7 +32,7 @@ use GoDataFeed\FeedManagement\Model\Product\ResponseCreatorInterface;
 /**
  * Class Product encapsulates logic for webapi requests handling.
  * @package GoDataFeed\FeedManagement\Model
- * @author akozyr
+ * @author  akozyr
  */
 class Product implements ProductInterface
 {
@@ -146,7 +146,8 @@ class Product implements ProductInterface
         CollectionFactory $productCollectionFactory,
         LoggerInterface $logger,
         ProductMetadataInterface $metdata
-    ) {
+    )
+    {
         $this->request = $request;
         $this->validator = $validator;
         $this->responseCreator = $responseCreator;
@@ -189,7 +190,7 @@ class Product implements ProductInterface
         $filteredParams = $this->filterParams(__FUNCTION__, $this->request->getParams());
         try {
             if ($this->validator->validate($filteredParams)) {
-                $result = $this->responseCreator->createResponse(__FUNCTION__, $this->getProductList($filteredParams));
+                $result = $this->responseCreator->createResponse(__FUNCTION__, [$this->getCollection($filteredParams)]);
             }
         } catch (\Exception $e) {
             $this->logger->addError($e->getMessage());
@@ -207,7 +208,7 @@ class Product implements ProductInterface
         $filteredParams = $this->filterParams(__FUNCTION__, $this->request->getParams());
         try {
             if ($this->validator->validate($filteredParams)) {
-                $result = $this->responseCreator->createResponse(__FUNCTION__, $this->getProductList($filteredParams, false));
+                $result = $this->responseCreator->createResponse(__FUNCTION__, [$this->getCollection($filteredParams, false)]);
             }
         } catch (\Exception $e) {
             $this->logger->addError($e->getMessage());
@@ -233,92 +234,22 @@ class Product implements ProductInterface
                 unset($filteredParams[$oldParam]);
             }
         }
-        if(!empty($filteredParams['order_direction'])){
+        if (!empty($filteredParams['order_direction'])) {
             $filteredParams['order_direction'] = strtoupper($filteredParams['order_direction']);
         }
         return $filteredParams;
     }
 
     /**
-     * Method returns list of products using Repository
-     * or Collection based on Magento 2 version and website filter param
+     * Method use collection to support old versions of Magento 2 that dont work with website_id and
+     * repository proper way and to speed up the count requests.
      *
-     * @param $filteredParams
-     * @param $limit
+     * @param array   $inputParams
+     * @param boolean $limit
      *
-     * @return \Magento\Catalog\Api\Data\ProductInterface[]|\Magento\Framework\DataObject[]
+     * @return \Magento\Catalog\Model\ResourceModel\Product\Collection
      */
-    private function getProductList($filteredParams, $limit = true)
-    {
-        $currentVersion = $this->metdata->getVersion();
-        if (!empty($currentVersion)
-            && version_compare($currentVersion, '2.2.0', '<')
-            && array_key_exists('website_id', $filteredParams)
-        ) {
-            $products = $this->getItemsByCollection($filteredParams, $limit);
-        } else {
-            $searchCriteria = $this->buildSearchCriteria($filteredParams, $limit);
-            $products = $this->productRepository->getList($searchCriteria)->getItems();
-        }
-        return $products;
-    }
-
-    /**
-     * Method responsible for creating the SearchCriteria object for repositories
-     *
-     * @param $inputParams
-     * @param $limit
-     *
-     * @return \Magento\Framework\Api\SearchCriteria
-     */
-    private function buildSearchCriteria($inputParams, $limit)
-    {
-        if ($limit) {
-            $this->searchCriteriaBuilder
-                ->setCurrentPage(self::DEFAULT_PAGE_NUMBER)
-                ->setPageSize(self::DEFAULT_PAGE_SIZE);
-        }
-        foreach ($inputParams as $key => $param) {
-            if ('limit' === $key) {
-                $this->searchCriteriaBuilder->setPageSize($param);
-                continue;
-            }
-            if ('page' === $key) {
-                $this->searchCriteriaBuilder->setCurrentPage($param);
-                continue;
-            }
-            if ('order_field' === $key) {
-                $this->sortOrderBuilder->setField($param);
-                continue;
-            }
-            if ('order_direction' === $key) {
-                $this->sortOrderBuilder->setDirection($param);
-                continue;
-            }
-            if ('type_id' === $key) {
-                $this->searchCriteriaBuilder->addFilter($key, $param, 'in');
-                continue;
-            }
-            $this->searchCriteriaBuilder->addFilter($key, $param);
-        }
-
-        $sortOrder = $this->sortOrderBuilder->create();
-        $this->searchCriteriaBuilder->addSortOrder($sortOrder);
-
-        return $this->searchCriteriaBuilder->create();
-    }
-
-    /**
-     * Method used to support old versions of Magento 2 that dont work with website_id and repository proper way.
-     * This bug fixed in 2.2
-     * https://github.com/magento/magento2/issues/7396
-     *
-     * @param      $inputParams
-     * @param bool $limit
-     *
-     * @return \Magento\Framework\DataObject[]
-     */
-    private function getItemsByCollection($inputParams, $limit)
+    private function getCollection($inputParams, $limit = true)
     {
         $productCollection = $this->productCollectionFactory->create();
         if ($limit) {
@@ -359,6 +290,6 @@ class Product implements ProductInterface
             }
             $productCollection->addAttributeToFilter($key, $param);
         }
-        return $productCollection->getItems();
+        return $productCollection;
     }
 }
