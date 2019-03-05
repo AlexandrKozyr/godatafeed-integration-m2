@@ -23,6 +23,7 @@ use Magento\Framework\Api\SearchCriteriaBuilder;
 use Magento\Framework\Api\SortOrderBuilder;
 use Magento\Framework\App\Request\Http;
 use Magento\Framework\Message\ManagerInterface;
+use Magento\Catalog\Api\ProductTypeListInterface;
 use Psr\Log\LoggerInterface;
 use Magento\Framework\App\ProductMetadataInterface;
 use GoDataFeed\FeedManagement\Api\ProductInterface;
@@ -120,6 +121,11 @@ class Product implements ProductInterface
     private $metdata;
 
     /**
+     * @var ProductTypeListInterface
+     */
+    private $productTypeList;
+
+    /**
      * Product constructor.
      *
      * @param Http                       $request
@@ -133,6 +139,7 @@ class Product implements ProductInterface
      * @param CollectionFactory          $productCollectionFactory
      * @param LoggerInterface            $logger
      * @param ProductMetadataInterface   $metdata
+     * @param ProductTypeListInterface   $productTypeListInterface
      */
     public function __construct(
         Http $request,
@@ -145,7 +152,8 @@ class Product implements ProductInterface
         ProductRepositoryInterface $productRepository,
         CollectionFactory $productCollectionFactory,
         LoggerInterface $logger,
-        ProductMetadataInterface $metdata
+        ProductMetadataInterface $metdata,
+        ProductTypeListInterface $productTypeListInterface
     )
     {
         $this->request = $request;
@@ -159,6 +167,8 @@ class Product implements ProductInterface
         $this->sortOrderBuilder = $sortOrderBuilder;
         $this->metdata = $metdata;
         $this->logger = $logger;
+        $this->productTypeList = $productTypeListInterface;
+
     }
 
     /**
@@ -190,6 +200,7 @@ class Product implements ProductInterface
         $filteredParams = $this->filterParams(__FUNCTION__, $this->request->getParams());
         try {
             if ($this->validator->validate($filteredParams)) {
+                $filteredParams = $this->updateTypesFilter($filteredParams);
                 $result = $this->responseCreator->createResponse(__FUNCTION__, [$this->getCollection($filteredParams)]);
             }
         } catch (\Exception $e) {
@@ -208,6 +219,7 @@ class Product implements ProductInterface
         $filteredParams = $this->filterParams(__FUNCTION__, $this->request->getParams());
         try {
             if ($this->validator->validate($filteredParams)) {
+                $filteredParams = $this->updateTypesFilter($filteredParams);
                 $result = $this->responseCreator->createResponse(__FUNCTION__, [$this->getCollection($filteredParams, false)]);
             }
         } catch (\Exception $e) {
@@ -215,6 +227,29 @@ class Product implements ProductInterface
             throw $e;
         }
         return $result;
+    }
+
+    /**
+     * Method removes product type filter if all possible types is recieved from GDF
+     *
+     * @param string $filters
+     *
+     * @return array $filters
+     */
+    private function updateTypesFilter($filters)
+    {
+        if(!empty($filters['type_id'])){
+            $productTypes = [];
+            foreach ($this->productTypeList->getProductTypes() as $productType) {
+                $productTypes [] = $productType->getName();
+            }
+
+            $filters['type_id'] = explode(',', $filters['type_id']);
+            if (count(array_intersect($productTypes, $filters['type_id'])) === count($productTypes)) {
+                unset($filters['type_id']);
+            }
+        }
+        return $filters;
     }
 
     /**
@@ -273,7 +308,7 @@ class Product implements ProductInterface
                 continue;
             }
             if ('type_id' === $key) {
-                $productCollection->addAttributeToFilter($key, $param, 'in');
+                $productCollection->addAttributeToFilter($key, ['in'=>$param]);
                 continue;
             }
             if ('category_id' === $key) {
