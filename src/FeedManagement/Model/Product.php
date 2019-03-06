@@ -238,7 +238,7 @@ class Product implements ProductInterface
      */
     private function updateTypesFilter($filters)
     {
-        if(!empty($filters['type_id'])){
+        if (!empty($filters['type_id'])) {
             $productTypes = [];
             foreach ($this->productTypeList->getProductTypes() as $productType) {
                 $productTypes [] = $productType->getName();
@@ -268,9 +268,6 @@ class Product implements ProductInterface
                 $filteredParams[$newParam] = $filteredParams[$oldParam];
                 unset($filteredParams[$oldParam]);
             }
-        }
-        if (!empty($filteredParams['order_direction'])) {
-            $filteredParams['order_direction'] = strtoupper($filteredParams['order_direction']);
         }
         return $filteredParams;
     }
@@ -304,15 +301,12 @@ class Product implements ProductInterface
                 $productCollection->setOrder($param, $orderDirection);
                 continue;
             }
-            if ('order_direction' === $key) {
-                continue;
-            }
             if ('type_id' === $key) {
-                $productCollection->addAttributeToFilter($key, ['in'=>$param]);
+                $productCollection->addAttributeToFilter($key, ['in' => $param]);
                 continue;
             }
             if ('category_id' === $key) {
-                $productCollection->addCategoryFilter($param);
+                $productCollection->addCategoriesFilter(['eq' => $param]);
                 continue;
             }
             if ('website_id' === $key) {
