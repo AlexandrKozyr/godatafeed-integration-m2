@@ -269,6 +269,7 @@ class Product implements ProductInterface
                 unset($filteredParams[$oldParam]);
             }
         }
+
         return $filteredParams;
     }
 
@@ -299,6 +300,9 @@ class Product implements ProductInterface
             if ('order_field' === $key) {
                 $orderDirection = !empty($inputParams['order_direction']) ? $inputParams['order_direction'] : 'ASC';
                 $productCollection->setOrder($param, $orderDirection);
+                continue;
+            }
+            if ('order_direction' === $key) {
                 continue;
             }
             if ('type_id' === $key) {
